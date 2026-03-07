@@ -52,6 +52,27 @@
     --transition-fast: all 0.1s ease;
 }
 
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --bg-card-hover: #334155;
+    --bg-glass: rgba(30, 41, 59, 0.7);
+    --bg-input: #0f172a;
+    --bg-modal: rgba(0, 0, 0, 0.6);
+
+    --border-primary: #334155;
+    --border-focus: #3b82f6;
+    --border-glow: #475569;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+
+    --gradient-bg: #0f172a;
+    color-scheme: dark;
+}
+
 /* ── Reset & Base ───────────────────────────────────────────── */
 *,
 *::before,
@@ -271,6 +292,27 @@ body {
 .btn-logout-clean:hover {
     color: var(--accent-red);
     background: rgba(220, 38, 38, 0.1);
+}
+
+.btn-theme-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    transition: var(--transition);
+    margin-left: 12px;
+}
+
+.btn-theme-toggle:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 /* ── Main Content ───────────────────────────────────────────── */
@@ -1886,7 +1928,8 @@ tbody tr:hover {
     .form-group input,
     .form-group select,
     .form-group textarea {
-        font-size: 16px; /* Prevents iOS zoom on focus */
+        font-size: 16px;
+        /* Prevents iOS zoom on focus */
     }
 
     /* Modals */

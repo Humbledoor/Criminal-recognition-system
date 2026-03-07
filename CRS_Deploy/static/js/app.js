@@ -12,6 +12,8 @@ let personSearchTimeout = null;
 
 // ── Init ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
+    
     if (authToken && currentUser) {
         showApp();
         loadDashboard();
@@ -19,6 +21,30 @@ document.addEventListener('DOMContentLoaded', () => {
         showLogin();
     }
 });
+
+// ── Theme ──────────────────────────────────────────────────────
+function initTheme() {
+    const savedTheme = localStorage.getItem('crs_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('crs_theme', newTheme);
+    updateThemeIcon(newTheme);
+}
+
+function updateThemeIcon(theme) {
+    const btn = document.getElementById('themeToggleBtn');
+    if (btn) {
+        // User requested: moon in night mode, sun in day mode
+        btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
+}
 
 // ── API Client ─────────────────────────────────────────────────
 async function api(url, options = {}) {
