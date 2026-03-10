@@ -13,7 +13,7 @@ let personSearchTimeout = null;
 // ── Init ───────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
-    
+
     if (authToken && currentUser) {
         showApp();
         loadDashboard();
@@ -32,7 +32,7 @@ function initTheme() {
 function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    
+
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('crs_theme', newTheme);
     updateThemeIcon(newTheme);
@@ -172,58 +172,127 @@ async function loadDashboard() {
         document.getElementById('statSearches').textContent = data.total_searches;
         document.getElementById('statOfficers').textContent = data.total_officers;
 
-        renderBarChart('riskChart', data.risk_distribution, {
-            'High': 'var(--accent-red)',
-            'Medium': 'var(--accent-amber)',
-            'Low': 'var(--accent-emerald)',
+        renderBarChart('riskChartCanvas', data.risk_distribution, {
+            'High': '#cc1e38',    // Red matching image
+            'Medium': '#de9b16',  // Amber matching image (Condersipation?)
+            'Low': '#1fa353',     // Green matching image
         });
 
-        renderBarChart('statusChart', data.status_distribution, {
-            'Convicted': 'var(--accent-red)',
-            'Under Investigation': 'var(--accent-amber)',
-            'Clean': 'var(--accent-emerald)',
-            'Released': 'var(--accent-blue)',
+        renderBarChart('statusChartCanvas', data.status_distribution, {
+            'Convicted': '#cc1e38',    // Cramarted?
+            'Under Investigation': '#de9b16', // Amber
+            'Clean': '#1fa353',        // Record Status (Green)
+            'Released': '#3b82f6',
         });
 
         renderRecentActivity(data.recent_activity);
     } catch (e) { /* handled by api() */ }
 }
 
-function renderBarChart(containerId, data, colors) {
-    const container = document.getElementById(containerId);
-    if (!container || !data) return;
-    const maxVal = Math.max(...Object.values(data), 1);
+// ── Dashboard Charts (Chart.js Horizontal Bars) ───────────
+let riskChartInstance = null;
+let statusChartInstance = null;
 
-    container.innerHTML = Object.entries(data).map(([label, value]) => {
-        const pct = Math.round((value / maxVal) * 100);
-        const color = colors[label] || 'var(--accent-blue)';
-        return `
-            <div class="chart-bar-row">
-                <div class="chart-bar-label">${label}</div>
-                <div class="chart-bar-track">
-                    <div class="chart-bar-fill" style="width:${pct}%;background:${color};">${value}</div>
-                </div>
-            </div>
-        `;
-    }).join('');
+function renderBarChart(canvasId, data, colors) {
+    const ctx = document.getElementById(canvasId);
+    if (!ctx || !data) return;
+
+    // Destroy existing chart if it exists
+    if (canvasId === 'riskChartCanvas' && riskChartInstance) riskChartInstance.destroy();
+    if (canvasId === 'statusChartCanvas' && statusChartInstance) statusChartInstance.destroy();
+
+    const labels = Object.keys(data);
+    const values = Object.values(data);
+    const bgColors = labels.map(label => colors[label] || '#3b82f6');
+
+    // Register datalabels plugin locally if available
+    const plugins = typeof ChartDataLabels !== 'undefined' ? [ChartDataLabels] : [];
+
+    const config = {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: bgColors,
+                barPercentage: 0.8,
+                categoryPercentage: 0.9
+            }]
+        },
+        plugins: plugins,
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true },
+                datalabels: {
+                    color: '#fff',
+                    anchor: 'end',
+                    align: 'start',
+                    offset: 4,
+                    font: { weight: 'bold', size: 11 },
+                    formatter: Math.round
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                    ticks: { color: '#94a3b8', font: { size: 11 } }
+                },
+                y: {
+                    grid: { display: false, drawBorder: false },
+                    ticks: { color: '#94a3b8', font: { size: 12 } }
+                }
+            }
+        }
+    };
+
+    const instance = new Chart(ctx, config);
+    if (canvasId === 'riskChartCanvas') riskChartInstance = instance;
+    if (canvasId === 'statusChartCanvas') statusChartInstance = instance;
 }
 
 function renderRecentActivity(activities) {
     const tbody = document.getElementById('recentActivityTable');
     if (!activities || !activities.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><div class="empty-text">No recent activity</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><div class="empty-text">No recent activity</div></td></tr>';
         return;
     }
 
-    tbody.innerHTML = activities.map(a => {
-        const time = a.timestamp ? new Date(a.timestamp).toLocaleString() : '—';
-        const badgeClass = `badge-action-${a.action_type.toLowerCase()}`;
+    // Map to User Image format: Timestamp | User | Action | Subject ID | Location
+    tbody.innerHTML = activities.slice(0, 5).map(a => {
+        // Format timestamp to "10-03-26 17:05" style
+        let timeStr = '—';
+        if (a.timestamp) {
+            const d = new Date(a.timestamp);
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            const yy = String(d.getFullYear()).slice(-2);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const min = String(d.getMinutes()).padStart(2, '0');
+            timeStr = `${dd}-${mm}-${yy} ${hh}:${min}`;
+        }
+
+        let subjectId = '—';
+        let location = 'Main Precinct'; // Hardcoded fallback for UI demo
+
+        if (a.action_type === 'Add' || a.action_type === 'Update') {
+            subjectId = 'ID-' + a.person_id;
+        } else if (a.action_type === 'Search' && a.details.includes('Match ID')) {
+            const match = a.details.match(/Match ID (\d+)/);
+            if (match) subjectId = `(ID-${match[1]})`;
+        }
+
         return `
             <tr>
-                <td style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);">${time}</td>
+                <td>${timeStr}</td>
                 <td>${a.officer_name}</td>
-                <td><span class="badge ${badgeClass}">${a.action_type}</span></td>
-                <td style="color:var(--text-secondary);font-size:12px;">${a.details || '—'}</td>
+                <td>${a.action_type} - ${a.details || ''}</td>
+                <td>${subjectId}</td>
+                <td>${location}</td>
             </tr>
         `;
     }).join('');
