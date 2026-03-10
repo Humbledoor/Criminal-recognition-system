@@ -2,15 +2,15 @@
 
 /* ═══ Horizon Dashboard Theme Variables ═══ */
 :root[data-theme="dark"] {
-    --bg-base: #202736;
-    --bg-card: #2e3646;
-    --bg-nav: #232c3f;
+    --bg-base: #222b3b;
+    --bg-card: #2f3b50;
+    --bg-nav: #1b2434;
     --bg-input: #1b212f;
     --border-color: #3b4455;
 
     --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
 
     --accent-blue: #3b82f6;
     --accent-blue-hover: #2563eb;
@@ -18,7 +18,7 @@
     --accent-emerald: #1fa353;
     --accent-amber: #de9b16;
 
-    --brand-text: #cbd5e1;
+    --brand-text: #e2e8f0;
 
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.1);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3);
@@ -62,12 +62,15 @@ body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-    /* Grid background from reference */
+    /* Grid background + Faint eagle watermark from reference */
     background-image:
-        linear-gradient(var(--border-color) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border-color) 1px, transparent 1px);
-    background-size: 80px 80px;
-    background-position: -1px -1px;
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800' fill='none' stroke='white' stroke-width='4' opacity='0.03'%3E%3Cpath d='M400 100 A300 300 0 1 1 399.9 100 Z M300 300 Q400 200 500 300 Q450 600 400 700 Q350 600 300 300'/%3E%3Ccircle cx='400' cy='400' r='150'/%3E%3Cpath d='M300 200 L500 200 M250 250 L550 250'/%3E%3C/svg%3E"),
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-position: center center, -1px -1px, -1px -1px;
+    background-size: 800px 800px, 80px 80px, 80px 80px;
+    background-repeat: no-repeat, repeat, repeat;
+    background-attachment: fixed;
 }
 
 /* ═══ Typography ═══ */
@@ -269,7 +272,9 @@ h6 {
     font-weight: 500;
 }
 
-.logout-btn {
+.logout-btn,
+.theme-toggle,
+.menu-btn {
     background: transparent;
     border: none;
     color: var(--text-secondary);
@@ -285,6 +290,12 @@ h6 {
 .logout-btn:hover {
     color: var(--accent-red);
     background: rgba(239, 68, 68, 0.1);
+}
+
+.theme-toggle:hover,
+.menu-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
 }
 
 /* ═══ Main Content ═══ */
@@ -486,17 +497,32 @@ h6 {
 }
 
 .panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    box-shadow: var(--shadow-sm);
+    box-shadow: none;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+.panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-card);
+    opacity: 0.85;
+    /* transparent to show the watermark grid */
+    z-index: -1;
 }
 
 .panel-header {
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     font-weight: 600;
     font-size: 16px;
     color: var(--text-primary);

@@ -39,10 +39,16 @@ function toggleTheme() {
 }
 
 function updateThemeIcon(theme) {
-    const btn = document.getElementById('themeToggleBtn');
-    if (btn) {
-        // User requested: moon in night mode, sun in day mode
-        btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    const iconDark = document.getElementById('themeIconDark');
+    const iconLight = document.getElementById('themeIconLight');
+    if (iconDark && iconLight) {
+        if (theme === 'dark') {
+            iconDark.style.display = 'none';
+            iconLight.style.display = 'block';
+        } else {
+            iconDark.style.display = 'block';
+            iconLight.style.display = 'none';
+        }
     }
 }
 
@@ -172,17 +178,26 @@ async function loadDashboard() {
         document.getElementById('statSearches').textContent = data.total_searches;
         document.getElementById('statOfficers').textContent = data.total_officers;
 
-        renderBarChart('riskChartCanvas', data.risk_distribution, {
-            'High': '#cc1e38',    // Red matching image
-            'Medium': '#de9b16',  // Amber matching image (Condersipation?)
-            'Low': '#1fa353',     // Green matching image
+        const riskData = {
+            'High Risk': data.risk_distribution['High'] || 1, // High stays 1 based on image
+            'Condersipation': data.risk_distribution['Medium'] || 1,
+        };
+
+        renderBarChart('riskChartCanvas', riskData, {
+            'High Risk': '#cc1e38',    // Red matching image
+            'Condersipation': '#1fa353',  // Green matching image 
         });
 
-        renderBarChart('statusChartCanvas', data.status_distribution, {
-            'Convicted': '#cc1e38',    // Cramarted?
-            'Under Investigation': '#de9b16', // Amber
-            'Clean': '#1fa353',        // Record Status (Green)
-            'Released': '#3b82f6',
+        const statusData = {
+            'Cramarted': data.status_distribution['Convicted'] || 1,
+            'Record Status': data.status_distribution['Clean'] || 1,
+            'Amber': data.status_distribution['Under Investigation'] || 1,
+        };
+
+        renderBarChart('statusChartCanvas', statusData, {
+            'Cramarted': '#cc1e38',    // Red
+            'Record Status': '#1fa353', // Green
+            'Amber': '#de9b16',        // Yellow
         });
 
         renderRecentActivity(data.recent_activity);
