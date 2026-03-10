@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Theme ──────────────────────────────────────────────────────
 function initTheme() {
-    const savedTheme = localStorage.getItem('crs_theme') || 'dark';
+    const savedTheme = localStorage.getItem('crs_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeIcon(savedTheme);
 }
@@ -137,40 +137,22 @@ function showApp() {
 
 function updateUserInfo() {
     if (!currentUser) return;
-    const initial = currentUser.full_name.charAt(0).toUpperCase();
-    const setTextSafe = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-    setTextSafe('userName', currentUser.full_name);
-    setTextSafe('userAvatar', initial);
-    setTextSafe('sidebarUserName', currentUser.full_name);
-    setTextSafe('sidebarUserRole', currentUser.role);
-    setTextSafe('sidebarAvatar', initial);
+    document.getElementById('userName').textContent = currentUser.full_name;
+    document.getElementById('userRole').textContent = currentUser.role;
+    document.getElementById('userAvatar').textContent = currentUser.full_name.charAt(0).toUpperCase();
 }
 
 // ── Navigation ─────────────────────────────────────────────────
-const pageTitles = {
-    dashboard: 'Dashboard', search: 'Face Recognition', persons: 'Persons Database',
-    analytics: 'Analytics', audit: 'Audit Logs', bias: 'Bias Monitor',
-    'person-detail': 'Criminal Profile'
-};
-
 function navigate(page) {
     currentPage = page;
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.sidebar-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
     const pageEl = document.getElementById(`page-${page}`);
     if (pageEl) pageEl.classList.add('active');
 
-    const navEl = document.querySelector(`.sidebar-item[data-page="${page}"]`);
+    const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navEl) navEl.classList.add('active');
-
-    // Update top bar title
-    const titleEl = document.getElementById('topBarTitle');
-    if (titleEl) titleEl.textContent = pageTitles[page] || 'Dashboard';
-
-    // Close sidebar on mobile
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar && window.innerWidth <= 1024) sidebar.classList.remove('open');
 
     // Load page data
     switch (page) {
@@ -178,61 +160,7 @@ function navigate(page) {
         case 'persons': loadPersons(); break;
         case 'audit': loadAuditLogs(); break;
         case 'bias': loadBiasData(); break;
-        case 'analytics': initAnalyticsCharts(); break;
     }
-}
-
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) sidebar.classList.toggle('open');
-}
-
-// ── Analytics Charts ───────────────────────────────────────────
-let chartsInitialized = false;
-function initAnalyticsCharts() {
-    if (chartsInitialized) return;
-    chartsInitialized = true;
-    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-    const textColor = isDark ? '#94a3b8' : '#475569';
-    const gridColor = isDark ? 'rgba(51,65,85,0.3)' : 'rgba(226,232,240,0.5)';
-    Chart.defaults.color = textColor;
-    Chart.defaults.borderColor = gridColor;
-
-    // Crime Types Pie Chart
-    new Chart(document.getElementById('crimeTypesChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Theft', 'Assault', 'Fraud', 'Drug Offenses', 'Cybercrime', 'Other'],
-            datasets: [{ data: [28, 22, 18, 15, 10, 7], backgroundColor: ['#3b82f6','#ef4444','#f59e0b','#22c55e','#8b5cf6','#06b6d4'], borderWidth: 0 }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { padding: 16, usePointStyle: true } } } }
-    });
-
-    // Monthly Bar Chart
-    new Chart(document.getElementById('monthlyChart'), {
-        type: 'bar',
-        data: {
-            labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-            datasets: [{
-                label: 'Records Added', data: [12,19,8,15,22,18,25,20,14,28,16,21],
-                backgroundColor: 'rgba(59,130,246,0.6)', borderRadius: 6, borderSkipped: false
-            }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: gridColor } }, x: { grid: { display: false } } } }
-    });
-
-    // Matches Line Chart
-    new Chart(document.getElementById('matchesChart'), {
-        type: 'line',
-        data: {
-            labels: ['Week 1','Week 2','Week 3','Week 4','Week 5','Week 6','Week 7','Week 8'],
-            datasets: [
-                { label: 'Matches Found', data: [5,8,12,7,15,11,18,14], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.4, fill: true },
-                { label: 'Searches', data: [20,25,30,22,35,28,40,32], borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.05)', tension: 0.4, fill: true }
-            ]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { usePointStyle: true } } }, scales: { y: { beginAtZero: true, grid: { color: gridColor } }, x: { grid: { display: false } } } }
-    });
 }
 
 // ── Dashboard ──────────────────────────────────────────────────
