@@ -24,13 +24,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Theme ──────────────────────────────────────────────────────
 function initTheme() {
-    const savedTheme = localStorage.getItem('crs_theme') || 'light';
+    // Force dark theme as the only supported theme for this UI version
+    const savedTheme = 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
+    localStorage.setItem('crs_theme', savedTheme);
     updateThemeIcon(savedTheme);
 }
 
 function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
 
     document.documentElement.setAttribute('data-theme', newTheme);

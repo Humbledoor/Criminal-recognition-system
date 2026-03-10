@@ -25,29 +25,7 @@
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4);
 }
 
-:root[data-theme="light"] {
-    --bg-base: #f1f5f9;
-    --bg-card: #ffffff;
-    --bg-nav: #ffffff;
-    --bg-input: #f8fafc;
-    --border-color: #e2e8f0;
-
-    --text-primary: #0f172a;
-    --text-secondary: #475569;
-    --text-muted: #94a3b8;
-
-    --accent-blue: #2563eb;
-    --accent-blue-hover: #1d4ed8;
-    --accent-red: #ef4444;
-    --accent-emerald: #10b981;
-    --accent-amber: #f59e0b;
-
-    --brand-text: #334155;
-
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-}
+/* Removed Light Theme completely to force dark mode */
 
 * {
     box-sizing: border-box;
