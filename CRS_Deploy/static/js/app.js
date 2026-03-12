@@ -162,12 +162,25 @@ function navigate(page) {
     const navEl = document.querySelector(`.nav-item[data-page="${page}"]`);
     if (navEl) navEl.classList.add('active');
 
+    // Close mobile menu if open
+    const navLinks = document.querySelector('.nav-links');
+    if (navLinks && navLinks.classList.contains('mobile-open')) {
+        toggleMobileMenu();
+    }
+
     // Load page data
     switch (page) {
         case 'dashboard': loadDashboard(); break;
         case 'persons': loadPersons(); break;
         case 'audit': loadAuditLogs(); break;
         case 'bias': loadBiasData(); break;
+    }
+}
+
+function toggleMobileMenu() {
+    const navLinks = document.querySelector('.nav-links');
+    if (navLinks) {
+        navLinks.classList.toggle('mobile-open');
     }
 }
 

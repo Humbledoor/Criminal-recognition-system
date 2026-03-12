@@ -460,12 +460,48 @@ h6 {
     }
 
     .nav-links {
-        position: static;
-        transform: none;
-        display: none;
+        position: fixed;
+        top: 64px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-nav);
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 40px 20px;
+        gap: 20px;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+        width: 100%;
+        height: calc(100vh - 64px);
     }
 
-    /* Hide center nav on small screens, need mobile menu */
+    .nav-links.mobile-open {
+        transform: translateX(0);
+        display: flex;
+    }
+
+    .nav-item {
+        width: 100%;
+        height: auto;
+        padding: 15px;
+        border-bottom: none;
+        border-left: 3px solid transparent;
+        flex-direction: row;
+        gap: 15px;
+        justify-content: flex-start;
+    }
+
+    .nav-item.active {
+        border-bottom-color: transparent;
+        border-left-color: var(--accent-blue);
+    }
+
+    .menu-btn {
+        display: flex !important;
+    }
 }
 
 @media (max-width: 640px) {
