@@ -1211,6 +1211,93 @@ h6 {
     }
 }
 
+/* ══════════════════════════════════════════════════════════════
+   Mobile Responsive — Phone (≤ 768px)
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .top-nav {
+        height: auto;
+        min-height: 56px;
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        gap: 8px;
+        position: fixed;
+    }
+
+    .nav-brand {
+        flex: 1;
+    }
+
+    .brand-title {
+        font-size: 14px;
+    }
+
+    .brand-subtitle {
+        font-size: 10px;
+    }
+
+    .nav-links {
+        width: 100%;
+        overflow-x: auto;
+        gap: 16px;
+        padding: 8px 0;
+        border-top: 1px solid var(--border-color);
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .nav-links::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-item {
+        padding: 4px 0;
+        font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .nav-user {
+        margin-left: auto;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .main-content {
+        padding: 140px 16px 24px 16px;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .table-controls {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .search-input {
+        width: 100%;
+    }
+
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ═══ Toasts / Notifications ═══ */
 .toast-container {
     position: fixed;
