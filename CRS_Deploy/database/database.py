@@ -30,25 +30,33 @@ def init_db():
 
     db = SessionLocal()
     try:
-        # Seed default admin officer if none exists
+        # Seed default officers if none exist (matches frontend login credentials)
         if not db.query(Officer).first():
-            admin = Officer(
-                username="admin",
-                full_name="System Administrator",
-                hashed_password=get_password_hash("admin123"),
+            officer_rakesh = Officer(
+                username="officer_rakesh",
+                full_name="Snr. Inspector Rakesh Sharma",
+                hashed_password=get_password_hash("Rakesh@001"),
                 role="admin",
-                badge_number="ADMIN-001",
-                department="System Administration",
-            )
-            officer = Officer(
-                username="officer1",
-                full_name="John Smith",
-                hashed_password=get_password_hash("officer123"),
-                role="officer",
-                badge_number="OFF-1042",
+                badge_number="KOL-001",
                 department="Criminal Investigation",
             )
-            db.add_all([admin, officer])
+            officer_priya = Officer(
+                username="officer_priya",
+                full_name="Sub-Inspector Priya Menon",
+                hashed_password=get_password_hash("Priya@002"),
+                role="officer",
+                badge_number="KOL-002",
+                department="Criminal Investigation",
+            )
+            officer_arjun = Officer(
+                username="officer_arjun",
+                full_name="Constable Arjun Das",
+                hashed_password=get_password_hash("Arjun@003"),
+                role="viewer",
+                badge_number="KOL-003",
+                department="Field Operations",
+            )
+            db.add_all([officer_rakesh, officer_priya, officer_arjun])
             db.commit()
 
             # Seed sample persons for demo (no embeddings — they get added when photos are uploaded)

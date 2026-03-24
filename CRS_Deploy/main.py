@@ -75,7 +75,10 @@ def startup():
     init_db()
     print("[OK] Criminal Recognition System started")
     print("[DB] Database initialized with sample data")
-    print("[AUTH] Default credentials: admin/admin123 or officer1/officer123")
+    print("[AUTH] Officer credentials:")
+    print("       officer_rakesh / Rakesh@001  (Admin)")
+    print("       officer_priya  / Priya@002   (Investigator)")
+    print("       officer_arjun  / Arjun@003   (Viewer)")
 
 
 if __name__ == "__main__":
