@@ -5,12 +5,11 @@ import os
 import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import Session
-from database.database import get_db
-from database.models import Person, AuditLog, CriminalRecord
+from google.cloud import firestore
+from database.database import get_db, _next_id
+from database.models import ActionType
 from database.encryption import encrypt_embedding
 from auth.auth import get_current_user, require_role
-from face_pipeline.embedder import extract_embedding
 from PIL import Image
 import io
 
@@ -27,46 +26,62 @@ def list_persons(
     risk: str = None,
     search: str = None,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
-    query = db.query(Person)
+    persons_ref = db.collection("persons")
+    query = persons_ref
+
     if status:
-        query = query.filter(Person.record_status == status)
+        query = query.where("record_status", "==", status)
     if risk:
-        query = query.filter(Person.risk_level == risk)
+        query = query.where("risk_level", "==", risk)
+    
+    # Note: Firestore lacks built-in ILIKE wildcard text search.
+    # In a full production app, use Algolia/ElasticSearch.
+    # Here, we fetch all and filter in memory if 'search' is provided.
+    
+    # Sort by updated_at descending
+    query = query.order_by("updated_at", direction=firestore.Query.DESCENDING)
+    
+    docs = list(query.stream())
+    
+    # In-memory search filter (case-insensitive substring)
     if search:
-        query = query.filter(Person.full_name.ilike(f"%{search}%"))
-    total = query.count()
-    persons = query.order_by(Person.updated_at.desc()).offset(skip).limit(limit).all()
+        search_lower = search.lower()
+        docs = [d for d in docs if search_lower in d.to_dict().get("full_name", "").lower()]
+        
+    total = len(docs)
+    
+    # Pagination
+    paginated_docs = docs[skip : skip + limit]
+    
+    persons = []
+    for doc in paginated_docs:
+        persons.append(_person_to_dict(doc.to_dict()))
+        
     return {
         "total": total,
-        "persons": [_person_to_dict(p) for p in persons]
+        "persons": persons
     }
 
 
 @router.get("/{person_id}")
-def get_person(person_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    person = db.query(Person).filter(Person.id == person_id).first()
-    if not person:
+def get_person(person_id: int, current_user: dict = Depends(get_current_user), db: firestore.Client = Depends(get_db)):
+    doc_ref = db.collection("persons").document(str(person_id))
+    doc = doc_ref.get()
+    
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Person not found")
-    result = _person_to_dict(person)
-    result["criminal_records"] = [
-        {
-            "id": r.id,
-            "crime_type": r.crime_type,
-            "crime_description": r.crime_description,
-            "case_number": r.case_number,
-            "date_of_offense": r.date_of_offense,
-            "arrest_date": r.arrest_date,
-            "conviction_status": r.conviction_status,
-            "sentence_details": r.sentence_details,
-            "law_enforcement_agency": r.law_enforcement_agency,
-            "court_name": r.court_name,
-            "officer_notes": r.officer_notes,
-            "last_updated": r.last_updated.isoformat() if r.last_updated else None,
-        }
-        for r in person.criminal_records
-    ]
+        
+    person_data = doc.to_dict()
+    result = _person_to_dict(person_data)
+    
+    # Fetch criminal records for this person
+    records_ref = db.collection("criminal_records")
+    records_query = records_ref.where("person_id", "==", person_id).order_by("last_updated", direction=firestore.Query.DESCENDING)
+    records_docs = records_query.stream()
+    
+    result["criminal_records"] = [d.to_dict() for d in records_docs]
     return result
 
 
@@ -82,23 +97,33 @@ async def create_person(
     risk_level: str = Form("Low"),
     photos: list[UploadFile] = File(None),
     current_user: dict = Depends(require_role("admin", "officer")),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
-    person = Person(
-        full_name=full_name,
-        date_of_birth=date_of_birth,
-        gender=gender,
-        nationality=nationality,
-        address=address,
-        government_id_number=government_id_number,
-        record_status=record_status,
-        risk_level=risk_level,
-    )
+    person_id = _next_id("persons")
+    
+    person_data = {
+        "id": person_id,
+        "full_name": full_name,
+        "date_of_birth": date_of_birth,
+        "gender": gender,
+        "nationality": nationality,
+        "address": address,
+        "government_id_number": government_id_number,
+        "record_status": record_status,
+        "risk_level": risk_level,
+        "face_embedding_encrypted": None,
+        "image_path": None,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
 
     # Handle multi-photo upload and embedding generation
-    # More photos = more robust face matching (like phone face lock)
     if photos:
-        from face_pipeline.embedder import extract_multi_embedding
+        try:
+            from face_pipeline.embedder import extract_multi_embedding
+        except Exception:
+            extract_multi_embedding = None
+            
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         images_for_embedding = []
 
@@ -115,7 +140,7 @@ async def create_person(
 
             # Use first photo as the primary image
             if i == 0:
-                person.image_path = f"/data/uploads/{filename}"
+                person_data["image_path"] = f"/data/uploads/{filename}"
 
             # Collect PIL images for multi-embedding
             try:
@@ -125,30 +150,31 @@ async def create_person(
                 pass
 
         # Generate averaged embedding from ALL uploaded photos
-        if images_for_embedding:
+        if images_for_embedding and extract_multi_embedding:
             try:
                 embedding = extract_multi_embedding(images_for_embedding)
                 if embedding:
-                    person.face_embedding_encrypted = encrypt_embedding(embedding)
+                    person_data["face_embedding_encrypted"] = encrypt_embedding(embedding)
                     print(f"[PERSON] Generated robust embedding from {len(images_for_embedding)} photo(s) for {full_name}")
             except Exception as e:
                 print(f"[PERSON] Embedding extraction failed: {e}")
 
-    db.add(person)
-    db.flush()
+    db.collection("persons").document(str(person_id)).set(person_data)
 
     # Log action
     photo_count = len(photos) if photos else 0
-    db.add(AuditLog(
-        officer_id=current_user.get("officer_id"),
-        action_type="Add",
-        person_id=person.id,
-        details=f"Added person: {full_name} ({photo_count} photos)",
-    ))
-    db.commit()
-    db.refresh(person)
+    audit_id = _next_id("audit_log")
+    db.collection("audit_log").document(str(audit_id)).set({
+        "id": audit_id,
+        "officer_id": current_user.get("officer_id"),
+        "action_type": ActionType.ADD.value,
+        "person_id": person_id,
+        "details": f"Added person: {full_name} ({photo_count} photos)",
+        "timestamp": datetime.utcnow().isoformat(),
+        "ip_address": None
+    })
 
-    return _person_to_dict(person)
+    return _person_to_dict(person_data)
 
 
 @router.put("/{person_id}")
@@ -163,52 +189,86 @@ async def update_person(
     record_status: str = Form(None),
     risk_level: str = Form(None),
     current_user: dict = Depends(require_role("admin", "officer")),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
-    person = db.query(Person).filter(Person.id == person_id).first()
-    if not person:
+    doc_ref = db.collection("persons").document(str(person_id))
+    doc = doc_ref.get()
+    
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    if full_name is not None: person.full_name = full_name
-    if date_of_birth is not None: person.date_of_birth = date_of_birth
-    if gender is not None: person.gender = gender
-    if nationality is not None: person.nationality = nationality
-    if address is not None: person.address = address
-    if government_id_number is not None: person.government_id_number = government_id_number
-    if record_status is not None: person.record_status = record_status
-    if risk_level is not None: person.risk_level = risk_level
-    person.updated_at = datetime.utcnow()
+    person_data = doc.to_dict()
+    updates = {}
 
-    db.add(AuditLog(
-        officer_id=current_user.get("officer_id"),
-        action_type="Update",
-        person_id=person.id,
-        details=f"Updated person: {person.full_name}",
-    ))
-    db.commit()
+    if full_name is not None: updates["full_name"] = full_name
+    if date_of_birth is not None: updates["date_of_birth"] = date_of_birth
+    if gender is not None: updates["gender"] = gender
+    if nationality is not None: updates["nationality"] = nationality
+    if address is not None: updates["address"] = address
+    if government_id_number is not None: updates["government_id_number"] = government_id_number
+    if record_status is not None: updates["record_status"] = record_status
+    if risk_level is not None: updates["risk_level"] = risk_level
+    
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    
+    doc_ref.update(updates)
+    person_data.update(updates)
 
-    return _person_to_dict(person)
+    audit_id = _next_id("audit_log")
+    db.collection("audit_log").document(str(audit_id)).set({
+        "id": audit_id,
+        "officer_id": current_user.get("officer_id"),
+        "action_type": ActionType.UPDATE.value,
+        "person_id": person_id,
+        "details": f"Updated person: {person_data.get('full_name')}",
+        "timestamp": datetime.utcnow().isoformat(),
+        "ip_address": None
+    })
+
+    return _person_to_dict(person_data)
 
 
 @router.delete("/{person_id}")
 def delete_person(
     person_id: int,
     current_user: dict = Depends(require_role("admin")),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
-    person = db.query(Person).filter(Person.id == person_id).first()
-    if not person:
+    doc_ref = db.collection("persons").document(str(person_id))
+    doc = doc_ref.get()
+    
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Person not found")
+        
+    person_data = doc.to_dict()
 
-    db.add(AuditLog(
-        officer_id=current_user.get("officer_id"),
-        action_type="Delete",
-        person_id=person.id,
-        details=f"Deleted person: {person.full_name}",
-    ))
+    audit_id = _next_id("audit_log")
+    db.collection("audit_log").document(str(audit_id)).set({
+        "id": audit_id,
+        "officer_id": current_user.get("officer_id"),
+        "action_type": ActionType.DELETE.value,
+        "person_id": person_id,
+        "details": f"Deleted person: {person_data.get('full_name')}",
+        "timestamp": datetime.utcnow().isoformat(),
+        "ip_address": None
+    })
 
-    db.delete(person)
-    db.commit()
+    # Delete associated criminal records
+    records_ref = db.collection("criminal_records")
+    records_docs = records_ref.where("person_id", "==", person_id).stream()
+    for r in records_docs:
+        r.reference.delete()
+
+    # Delete photo file if exists
+    if person_data.get("image_path"):
+        try:
+            photo_path = os.path.join(os.path.dirname(__file__), "..", person_data["image_path"].lstrip("/"))
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+        except Exception:
+            pass
+
+    doc_ref.delete()
     return {"message": "Person deleted"}
 
 
@@ -222,7 +282,7 @@ class BulkDeleteRequest(BaseModel):
 def bulk_delete_persons(
     request: BulkDeleteRequest,
     current_user: dict = Depends(require_role("admin", "officer")),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
     """Delete multiple persons by their IDs."""
     person_ids = request.person_ids
@@ -231,35 +291,47 @@ def bulk_delete_persons(
 
     deleted = 0
     names = []
+    
+    batch = db.batch()
+    
     for pid in person_ids:
-        person = db.query(Person).filter(Person.id == pid).first()
-        if person:
-            names.append(person.full_name)
+        doc_ref = db.collection("persons").document(str(pid))
+        doc = doc_ref.get()
+        if doc.exists:
+            person_data = doc.to_dict()
+            names.append(person_data.get("full_name"))
 
-            # Delete associated criminal records first
-            db.query(CriminalRecord).filter(CriminalRecord.person_id == pid).delete()
+            # Delete associated criminal records
+            records_docs = db.collection("criminal_records").where("person_id", "==", pid).stream()
+            for r in records_docs:
+                batch.delete(r.reference)
 
             # Delete photo file if exists
-            if person.image_path:
+            if person_data.get("image_path"):
                 try:
-                    photo_path = os.path.join(os.path.dirname(__file__), "..", person.image_path.lstrip("/"))
+                    photo_path = os.path.join(os.path.dirname(__file__), "..", person_data["image_path"].lstrip("/"))
                     if os.path.exists(photo_path):
                         os.remove(photo_path)
                 except Exception:
                     pass
 
             # Audit log
-            db.add(AuditLog(
-                officer_id=current_user.get("officer_id"),
-                action_type="Delete",
-                person_id=person.id,
-                details=f"Bulk deleted person: {person.full_name}",
-            ))
+            audit_id = _next_id("audit_log")
+            audit_ref = db.collection("audit_log").document(str(audit_id))
+            batch.set(audit_ref, {
+                "id": audit_id,
+                "officer_id": current_user.get("officer_id"),
+                "action_type": ActionType.DELETE.value,
+                "person_id": pid,
+                "details": f"Bulk deleted person: {person_data.get('full_name')}",
+                "timestamp": datetime.utcnow().isoformat(),
+                "ip_address": None
+            })
 
-            db.delete(person)
+            batch.delete(doc_ref)
             deleted += 1
 
-    db.commit()
+    batch.commit()
     return {
         "message": f"{deleted} person(s) deleted successfully",
         "deleted_count": deleted,
@@ -267,19 +339,19 @@ def bulk_delete_persons(
     }
 
 
-def _person_to_dict(p: Person) -> dict:
+def _person_to_dict(p: dict) -> dict:
     return {
-        "id": p.id,
-        "full_name": p.full_name,
-        "date_of_birth": p.date_of_birth,
-        "gender": p.gender,
-        "nationality": p.nationality,
-        "address": p.address,
-        "government_id_number": p.government_id_number,
-        "record_status": p.record_status,
-        "risk_level": p.risk_level,
-        "image_path": p.image_path,
-        "has_embedding": p.face_embedding_encrypted is not None,
-        "created_at": p.created_at.isoformat() if p.created_at else None,
-        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        "id": p.get("id"),
+        "full_name": p.get("full_name"),
+        "date_of_birth": p.get("date_of_birth"),
+        "gender": p.get("gender"),
+        "nationality": p.get("nationality"),
+        "address": p.get("address"),
+        "government_id_number": p.get("government_id_number"),
+        "record_status": p.get("record_status"),
+        "risk_level": p.get("risk_level"),
+        "image_path": p.get("image_path"),
+        "has_embedding": p.get("face_embedding_encrypted") is not None,
+        "created_at": p.get("created_at"),
+        "updated_at": p.get("updated_at"),
     }

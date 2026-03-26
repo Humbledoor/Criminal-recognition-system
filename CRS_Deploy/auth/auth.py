@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 
 SECRET_KEY = "criminal-recognition-secret-change-in-production-2024"
 ALGORITHM = "HS256"

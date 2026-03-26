@@ -1,12 +1,10 @@
 """
 Face matching engine — compares query embedding against stored embeddings.
-Uses cosine similarity with proper thresholds for FaceNet embeddings.
+Adapted for Firebase Firestore.
 """
 import numpy as np
-from sqlalchemy.orm import Session
-from database.models import Person
+from google.cloud import firestore
 from database.encryption import decrypt_embedding
-
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Compute cosine similarity between two vectors."""
@@ -27,25 +25,34 @@ def euclidean_distance(a: list[float], b: list[float]) -> float:
 
 def search_matches(
     query_embedding: list[float],
-    db: Session,
+    db: firestore.Client,
     threshold: float = 0.4,
     max_results: int = 10
 ) -> list[dict]:
     """
     Search the database for matching faces.
     Returns ranked list of matches above threshold.
-
-    Threshold guide for OpenCV SFace embeddings (cosine similarity):
-      - > 0.50 = Strong match (very likely same person)
-      - ~ 0.363 = Standard match threshold
-      - < 0.30 = Not a match
     """
-    persons = db.query(Person).filter(Person.face_embedding_encrypted.isnot(None)).all()
+    # In Firestore, we must retrieve all persons with an embedding
+    # and compute similarity in memory. This is standard for small datasets.
+    # For millions of records, a vector DB (Pinecone, Milvus) is required.
+    
+    persons_ref = db.collection("persons")
+    # Firebase doesn't have "isnot(None)" easily without composite indexes
+    # But we can just stream all and filter
+    docs = persons_ref.stream()
 
     results = []
-    for person in persons:
+    
+    for doc in docs:
+        person = doc.to_dict()
+        enc_emb = person.get("face_embedding_encrypted")
+        
+        if not enc_emb:
+            continue
+            
         try:
-            stored_embedding = decrypt_embedding(person.face_embedding_encrypted)
+            stored_embedding = decrypt_embedding(enc_emb)
         except Exception:
             continue
 
@@ -56,12 +63,6 @@ def search_matches(
         cos_sim = cosine_similarity(query_embedding, stored_embedding)
         euc_dist = euclidean_distance(query_embedding, stored_embedding)
 
-        # For OpenCV SFace normalized embeddings:
-        # cosine sim >= 0.363 is considered a match
-        # Convert similarity to a 0-100 score:
-        # - < 0.20 => 0% (definitely not)
-        # - 0.363 => 60% (match threshold)
-        # - 1.0 => 100% (identical)
         if cos_sim < 0.20:
             confidence = 0.0
         elif cos_sim < 0.363:
@@ -72,18 +73,36 @@ def search_matches(
         confidence = max(0.0, min(100.0, confidence))
 
         if cos_sim >= threshold:
+            # Fetch criminal records for this person
+            person_id = person.get("id")
+            crime_types = []
+            total_cases = 0
+            try:
+                records_docs = db.collection("criminal_records").where("person_id", "==", person_id).stream()
+                for rec_doc in records_docs:
+                    rec = rec_doc.to_dict()
+                    ct = rec.get("crime_type")
+                    if ct and ct not in crime_types:
+                        crime_types.append(ct)
+                    total_cases += 1
+            except Exception:
+                pass
+
             results.append({
-                "person_id": person.id,
-                "full_name": person.full_name,
+                "person_id": person_id,
+                "full_name": person.get("full_name"),
                 "confidence": round(confidence, 2),
                 "cosine_similarity": round(cos_sim, 4),
                 "euclidean_distance": round(euc_dist, 4),
-                "record_status": person.record_status,
-                "risk_level": person.risk_level,
-                "date_of_birth": person.date_of_birth,
-                "gender": person.gender,
-                "nationality": person.nationality,
-                "image_path": person.image_path,
+                "record_status": person.get("record_status"),
+                "risk_level": person.get("risk_level"),
+                "date_of_birth": person.get("date_of_birth"),
+                "gender": person.get("gender"),
+                "nationality": person.get("nationality"),
+                "image_path": person.get("image_path"),
+                "crime_types": crime_types,
+                "total_cases": total_cases,
+                "last_seen_location": person.get("address") or "Unknown",
             })
 
     # Sort by confidence descending

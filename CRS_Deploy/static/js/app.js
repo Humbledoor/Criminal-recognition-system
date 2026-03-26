@@ -188,19 +188,21 @@ function toggleMobileMenu() {
 async function loadDashboard() {
     try {
         const data = await api('/api/dashboard/stats');
-        document.getElementById('statPersons').textContent = data.total_persons;
-        document.getElementById('statRecords').textContent = data.total_records;
-        document.getElementById('statSearches').textContent = data.total_searches;
-        document.getElementById('statOfficers').textContent = data.total_officers;
+
+        // New stat cards
+        document.getElementById('statCriminals').textContent = data.total_criminals || 0;
+        document.getElementById('statActiveCases').textContent = data.active_cases || 0;
+        document.getElementById('statMostWanted').textContent = (data.most_wanted || []).length;
+        document.getElementById('statDetections').textContent = (data.latest_detections || []).length;
 
         const riskData = {
-            'High Risk': data.risk_distribution['High'] || 1, // High stays 1 based on image
+            'High Risk': data.risk_distribution['High'] || 1,
             'Condersipation': data.risk_distribution['Medium'] || 1,
         };
 
         renderBarChart('riskChartCanvas', riskData, {
-            'High Risk': '#cc1e38',    // Red matching image
-            'Condersipation': '#1fa353',  // Green matching image 
+            'High Risk': '#cc1e38',
+            'Condersipation': '#1fa353',
         });
 
         const statusData = {
@@ -210,10 +212,63 @@ async function loadDashboard() {
         };
 
         renderBarChart('statusChartCanvas', statusData, {
-            'Cramarted': '#cc1e38',    // Red
-            'Record Status': '#1fa353', // Green
-            'Amber': '#de9b16',        // Yellow
+            'Cramarted': '#cc1e38',
+            'Record Status': '#1fa353',
+            'Amber': '#de9b16',
         });
+
+        // Most Wanted panel
+        const wantedGrid = document.getElementById('mostWantedGrid');
+        const wantedCount = document.getElementById('wantedCount');
+        const wanted = data.most_wanted || [];
+        wantedCount.textContent = wanted.length;
+
+        if (wanted.length > 0) {
+            wantedGrid.innerHTML = wanted.map(w => `
+                <div class="wanted-card" onclick="viewPersonDetail(${w.id})">
+                    <div class="wanted-name">${w.full_name}</div>
+                    <div class="wanted-meta">
+                        ${getStatusBadge(w.record_status)}
+                        <span class="badge" style="background:rgba(204,30,56,0.15);color:#f87171;">⚠ High Risk</span>
+                        <span>📍 ${w.address || 'Unknown'}</span>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            wantedGrid.innerHTML = '<div class="empty-state" style="padding:20px;"><div class="empty-text">No high-risk persons</div></div>';
+        }
+
+        // Latest Detections panel
+        const detList = document.getElementById('latestDetectionsList');
+        const detCount = document.getElementById('detectionCount');
+        const detections = data.latest_detections || [];
+        detCount.textContent = detections.length;
+
+        if (detections.length > 0) {
+            detList.innerHTML = detections.map(d => {
+                let timeStr = '—';
+                if (d.timestamp) {
+                    const dt = new Date(d.timestamp);
+                    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+                    const dd = String(dt.getDate()).padStart(2, '0');
+                    const hh = String(dt.getHours()).padStart(2, '0');
+                    const min = String(dt.getMinutes()).padStart(2, '0');
+                    timeStr = `${dd}/${mm} ${hh}:${min}`;
+                }
+                return `
+                    <div class="detection-item" onclick="viewPersonDetail(${d.person_id})">
+                        <div class="detection-time">${timeStr}</div>
+                        <div class="detection-info">
+                            <div style="font-weight:600;">${d.officer_name}</div>
+                            <div style="font-size:11px;color:var(--text-muted);">${d.details || 'Face search match'}</div>
+                        </div>
+                        <span class="badge badge-action-search">Match</span>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            detList.innerHTML = '<div class="empty-state" style="padding:20px;"><div class="empty-text">No recent detections</div></div>';
+        }
 
         renderRecentActivity(data.recent_activity);
     } catch (e) { /* handled by api() */ }
@@ -480,6 +535,9 @@ async function performSearch() {
                     <div class="empty-icon">✅</div>
                     <div class="empty-text">No Matches Found</div>
                     <div class="empty-subtext">No persons in the database matched the uploaded face above the confidence threshold (${(data.threshold_used * 100).toFixed(0)}%).</div>
+                    <button class="btn btn-primary" style="margin-top:16px;" onclick="addUnmatchedPerson()">
+                        ➕ Add This Person to Database
+                    </button>
                 </div>
             `;
             document.getElementById('resultCount').style.display = 'none';
@@ -493,6 +551,7 @@ async function performSearch() {
                 const confColor = m.confidence > 70 ? 'var(--accent-red)' : m.confidence > 40 ? 'var(--accent-amber)' : 'var(--accent-emerald)';
                 const riskClass = m.risk_level ? m.risk_level.toLowerCase() : 'low';
                 const statusBadge = getStatusBadge(m.record_status);
+                const crimeTypeTags = (m.crime_types || []).map(ct => `<span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;font-size:10px;">${ct}</span>`).join(' ');
 
                 return `
                     <div class="match-result" onclick="viewPersonDetail(${m.person_id}, ${m.confidence})">
@@ -500,12 +559,29 @@ async function performSearch() {
                             <div class="match-name">${m.full_name}</div>
                             <div class="match-confidence ${confClass}">${m.confidence.toFixed(1)}%</div>
                         </div>
-                        <div class="match-meta">
-                            ${statusBadge}
-                            <div class="risk-indicator">
-                                <div class="risk-dot ${riskClass}"></div>
-                                <span style="font-size:12px;color:var(--text-secondary);">${m.risk_level || 'N/A'} Risk</span>
+                        <div class="match-detail-grid">
+                            <div class="match-detail-item">
+                                <div class="match-detail-label">⚖️ Crime Type</div>
+                                <div>${crimeTypeTags || '<span style="color:var(--text-muted)">None</span>'}</div>
                             </div>
+                            <div class="match-detail-item">
+                                <div class="match-detail-label">📁 Previous Cases</div>
+                                <div style="font-weight:700;font-size:16px;">${m.total_cases || 0}</div>
+                            </div>
+                            <div class="match-detail-item">
+                                <div class="match-detail-label">📍 Last Seen Location</div>
+                                <div style="font-size:12px;">${m.last_seen_location || 'Unknown'}</div>
+                            </div>
+                            <div class="match-detail-item">
+                                <div class="match-detail-label">🎯 Risk Level</div>
+                                <div class="risk-indicator">
+                                    <div class="risk-dot ${riskClass}"></div>
+                                    <span style="font-weight:600;">${m.risk_level || 'N/A'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="match-meta" style="margin-top:8px;">
+                            ${statusBadge}
                             <span class="match-meta-item">📅 ${m.date_of_birth || 'N/A'}</span>
                             <span class="match-meta-item">🌍 ${m.nationality || 'N/A'}</span>
                         </div>
@@ -907,6 +983,19 @@ function openAddRecordModal() {
     document.getElementById('addRecordForm').reset();
     document.getElementById('recordPersonId').value = selectedPersonId;
     openModal('addRecordModal');
+}
+
+function addUnmatchedPerson() {
+    document.getElementById('addPersonForm').reset();
+    openModal('addPersonModal');
+
+    // Pre-attach the searched image to the photo input
+    if (selectedFile) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(selectedFile);
+        document.getElementById('personPhoto').files = dataTransfer.files;
+        showToast('📸 The searched photo has been pre-attached. Fill in the details and save.', 'info');
+    }
 }
 
 function openAddPersonModal() {

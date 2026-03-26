@@ -1,72 +1,152 @@
 """
-Database engine, session management, and seeding.
+Database engine using Firebase Firestore for persistent cloud storage.
+Replaces SQLAlchemy/SQLite to survive Render redeployments.
 """
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from database.models import Base, Officer, Person, CriminalRecord
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 from auth.auth import get_password_hash
+from datetime import datetime
 
-DATABASE_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
-DATABASE_URL = f"sqlite:///{os.path.join(DATABASE_DIR, 'criminal_recognition.db')}"
+# ── Firebase Initialization ─────────────────────────────────────────
+_firebase_app = None
+_firestore_client = None
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, echo=False)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+def _init_firebase():
+    """Initialize Firebase Admin SDK (called once)."""
+    global _firebase_app, _firestore_client
+    if _firebase_app is not None:
+        return
+
+    # Option 1: JSON key file in project root
+    key_path = os.path.join(os.path.dirname(__file__), "..", "firebase_key.json")
+
+    # Option 2: Environment variable (for Render deployment)
+    env_creds = os.environ.get("FIREBASE_CREDENTIALS")
+
+    if os.path.exists(key_path):
+        cred = credentials.Certificate(key_path)
+    elif env_creds:
+        cred_dict = json.loads(env_creds)
+        cred = credentials.Certificate(cred_dict)
+    else:
+        raise RuntimeError(
+            "Firebase credentials not found. "
+            "Place firebase_key.json in project root or set FIREBASE_CREDENTIALS env var."
+        )
+
+    _firebase_app = firebase_admin.initialize_app(cred)
+    import google.cloud.firestore
+    _firestore_client = google.cloud.firestore.Client(
+        project=_firebase_app.project_id,
+        database='crs-systemm',
+        credentials=cred.get_credential()
+    )
+    print("[FIREBASE] Connected to Firestore successfully")
 
 
 def get_db():
-    """FastAPI dependency -- yields a database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    """FastAPI dependency — yields a Firestore client."""
+    _init_firebase()
+    yield _firestore_client
 
 
+def get_firestore_client():
+    """Direct access to Firestore client (non-dependency use)."""
+    _init_firebase()
+    return _firestore_client
+
+
+# ── Auto-increment ID helper ────────────────────────────────────────
+def _next_id(collection_name: str) -> int:
+    """Generate auto-incrementing integer IDs using Firestore transactions."""
+    db = get_firestore_client()
+    counter_ref = db.collection("_counters").document(collection_name)
+
+    @firestore.transactional
+    def _increment(transaction):
+        snapshot = counter_ref.get(transaction=transaction)
+        if snapshot.exists:
+            current = snapshot.to_dict().get("next_id", 1)
+        else:
+            # Counter missing: scan collection to find the real max ID
+            max_id = 0
+            for doc in db.collection(collection_name).select(["id"]).stream():
+                doc_id = doc.to_dict().get("id", 0)
+                if isinstance(doc_id, int) and doc_id > max_id:
+                    max_id = doc_id
+            current = max_id + 1
+        transaction.set(counter_ref, {"next_id": current + 1})
+        return current
+
+    transaction = db.transaction()
+    return _increment(transaction)
+
+
+# ── Seeding ──────────────────────────────────────────────────────────
 def init_db():
-    """Create tables and seed default data."""
-    os.makedirs(DATABASE_DIR, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    """Seed default data into Firestore ONLY on the very first run."""
+    _init_firebase()
+    db = _firestore_client
 
-    db = SessionLocal()
-    try:
-        # Seed default officers if none exist (matches frontend login credentials)
-        if not db.query(Officer).first():
-            officer_rakesh = Officer(
-                username="officer_rakesh",
-                full_name="Snr. Inspector Rakesh Sharma",
-                hashed_password=get_password_hash("Rakesh@001"),
-                role="admin",
-                badge_number="KOL-001",
-                department="Criminal Investigation",
-            )
-            officer_priya = Officer(
-                username="officer_priya",
-                full_name="Sub-Inspector Priya Menon",
-                hashed_password=get_password_hash("Priya@002"),
-                role="officer",
-                badge_number="KOL-002",
-                department="Criminal Investigation",
-            )
-            officer_arjun = Officer(
-                username="officer_arjun",
-                full_name="Constable Arjun Das",
-                hashed_password=get_password_hash("Arjun@003"),
-                role="viewer",
-                badge_number="KOL-003",
-                department="Field Operations",
-            )
-            db.add_all([officer_rakesh, officer_priya, officer_arjun])
-            db.commit()
+    # Permanent seed flag — once set, seeding NEVER runs again
+    seed_flag = db.collection("_counters").document("_seed_done").get()
+    if seed_flag.exists:
+        print("[FIREBASE] Seed already completed previously, skipping")
+        return
 
-            # Seed sample persons for demo (no embeddings — they get added when photos are uploaded)
-            _seed_sample_data(db)
-    finally:
-        db.close()
+    # Extra safety: check if any data exists in any collection
+    for coll_name in ["officers", "persons", "criminal_records"]:
+        existing = list(db.collection(coll_name).limit(1).stream())
+        if existing:
+            print(f"[FIREBASE] Data found in '{coll_name}', marking seed as done and skipping")
+            db.collection("_counters").document("_seed_done").set({"done": True})
+            return
 
+    print("[FIREBASE] Seeding initial data...")
 
-def _seed_sample_data(db):
-    """Insert sample persons and records for demonstration."""
+    # ── Seed Officers ──
+    officer_data = [
+        {
+            "username": "officer_rakesh",
+            "full_name": "Snr. Inspector Rakesh Sharma",
+            "hashed_password": get_password_hash("Rakesh@001"),
+            "role": "admin",
+            "badge_number": "KOL-001",
+            "department": "Criminal Investigation",
+            "is_active": 1,
+            "created_at": datetime.utcnow().isoformat(),
+        },
+        {
+            "username": "officer_priya",
+            "full_name": "Sub-Inspector Priya Menon",
+            "hashed_password": get_password_hash("Priya@002"),
+            "role": "officer",
+            "badge_number": "KOL-002",
+            "department": "Criminal Investigation",
+            "is_active": 1,
+            "created_at": datetime.utcnow().isoformat(),
+        },
+        {
+            "username": "officer_arjun",
+            "full_name": "Constable Arjun Das",
+            "hashed_password": get_password_hash("Arjun@003"),
+            "role": "viewer",
+            "badge_number": "KOL-003",
+            "department": "Field Operations",
+            "is_active": 1,
+            "created_at": datetime.utcnow().isoformat(),
+        },
+    ]
+
+    for odata in officer_data:
+        oid = _next_id("officers")
+        odata["id"] = oid
+        officers_ref.document(str(oid)).set(odata)
+    print(f"[FIREBASE] Seeded {len(officer_data)} officers")
+
+    # ── Seed Sample Persons ──
     samples = [
         {
             "full_name": "Marcus Johnson",
@@ -77,6 +157,10 @@ def _seed_sample_data(db):
             "government_id_number": "SSN-XXX-XX-4521",
             "record_status": "Convicted",
             "risk_level": "High",
+            "face_embedding_encrypted": None,
+            "image_path": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
             "crimes": [
                 {
                     "crime_type": "Armed Robbery",
@@ -111,6 +195,10 @@ def _seed_sample_data(db):
             "government_id_number": "SSN-XXX-XX-7833",
             "record_status": "Under Investigation",
             "risk_level": "Medium",
+            "face_embedding_encrypted": None,
+            "image_path": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
             "crimes": [
                 {
                     "crime_type": "Wire Fraud",
@@ -134,6 +222,10 @@ def _seed_sample_data(db):
             "government_id_number": "SSN-XXX-XX-2198",
             "record_status": "Released",
             "risk_level": "Low",
+            "face_embedding_encrypted": None,
+            "image_path": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
             "crimes": [
                 {
                     "crime_type": "Tax Evasion",
@@ -150,15 +242,24 @@ def _seed_sample_data(db):
         },
     ]
 
+    persons_ref = db.collection("persons")
+    records_ref = db.collection("criminal_records")
+
     for s in samples:
         crimes = s.pop("crimes")
-        # No dummy embedding — embeddings are generated only from actual photos
-        person = Person(**s)
-        db.add(person)
-        db.flush()
+        pid = _next_id("persons")
+        s["id"] = pid
+        persons_ref.document(str(pid)).set(s)
 
         for c in crimes:
-            c["person_id"] = person.id
-            db.add(CriminalRecord(**c))
+            rid = _next_id("criminal_records")
+            c["id"] = rid
+            c["person_id"] = pid
+            c["last_updated"] = datetime.utcnow().isoformat()
+            records_ref.document(str(rid)).set(c)
 
-    db.commit()
+    print(f"[FIREBASE] Seeded {len(samples)} persons with criminal records")
+
+    # Mark seeding as permanently done
+    db.collection("_counters").document("_seed_done").set({"done": True})
+    print("[FIREBASE] Seed flag set — seeding will not run again")

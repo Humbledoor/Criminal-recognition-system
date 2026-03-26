@@ -1,16 +1,18 @@
 """
 Face search API route -- the core face recognition endpoint.
+Adapted for Firebase Firestore.
 """
 import io
 import os
 import sys
 import traceback
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from google.cloud import firestore
 from PIL import Image
-from database.database import get_db
-from database.models import AuditLog
+from database.database import get_db, _next_id
+from database.models import ActionType
 from auth.auth import get_current_user
 from face_pipeline.detector import validate_image
 from face_pipeline.embedder import extract_embedding
@@ -34,7 +36,7 @@ async def search_face(
     threshold: float = Form(0.4),
     max_results: int = Form(10),
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: firestore.Client = Depends(get_db),
 ):
     """
     Upload an image -> detect face -> extract embedding -> match against database.
@@ -76,13 +78,16 @@ async def search_face(
 
         # Step 6: Audit log
         match_summary = f"{len(matches)} matches found" if matches else "No matches found"
-        db.add(AuditLog(
-            officer_id=current_user.get("officer_id"),
-            action_type="Search",
-            person_id=matches[0]["person_id"] if matches else None,
-            details=f"Face search: {match_summary} (threshold={threshold})",
-        ))
-        db.commit()
+        audit_id = _next_id("audit_log")
+        db.collection("audit_log").document(str(audit_id)).set({
+            "id": audit_id,
+            "officer_id": current_user.get("officer_id"),
+            "action_type": ActionType.SEARCH.value,
+            "person_id": matches[0]["person_id"] if matches else None,
+            "details": f"Face search: {match_summary} (threshold={threshold})",
+            "timestamp": datetime.utcnow().isoformat(),
+            "ip_address": None
+        })
 
         return {
             "matches": matches,

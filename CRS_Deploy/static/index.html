@@ -37,19 +37,56 @@
             <form id="loginForm" onsubmit="return false;">
                 <div class="form-group">
                     <label class="form-label" for="loginUsername">Officer ID</label>
-                    <input class="form-input" type="text" id="loginUsername" placeholder="Enter your username"
-                        value="admin" autocomplete="username">
+                    <input class="form-input" type="text" id="loginUsername" placeholder="Enter your Officer ID"
+                        autocomplete="username">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="loginPassword">Access Code</label>
-                    <input class="form-input" type="password" id="loginPassword" placeholder="Enter your password"
-                        value="admin123" autocomplete="current-password">
+                    <input class="form-input" type="password" id="loginPassword" placeholder="Enter your Access Code"
+                        autocomplete="current-password">
                 </div>
                 <button class="btn btn-primary btn-lg" style="width:100%" type="submit" id="loginBtn"
                     onclick="handleLogin()">
                     Authenticate
                 </button>
             </form>
+
+            <!-- Officer Credentials Reference Panel -->
+            <div style="margin-top:24px; border-top:1px solid #1e293b; padding-top:18px;">
+                <p style="font-size:11px; color:#64748b; text-align:center; margin-bottom:12px; letter-spacing:0.08em; text-transform:uppercase;">Registered Officers</p>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:12px; color:#e2e8f0; font-weight:600;">Snr. Inspector Rakesh Sharma</div>
+                            <div style="font-size:11px; color:#64748b; margin-top:2px;">Badge: KOL-001 · Admin</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:11px; color:#94a3b8;">ID: <span style="color:#38bdf8; font-family:monospace;">officer_rakesh</span></div>
+                            <div style="font-size:11px; color:#94a3b8;">Pass: <span style="color:#38bdf8; font-family:monospace;">Rakesh@001</span></div>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:12px; color:#e2e8f0; font-weight:600;">Sub-Inspector Priya Menon</div>
+                            <div style="font-size:11px; color:#64748b; margin-top:2px;">Badge: KOL-002 · Investigator</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:11px; color:#94a3b8;">ID: <span style="color:#38bdf8; font-family:monospace;">officer_priya</span></div>
+                            <div style="font-size:11px; color:#94a3b8;">Pass: <span style="color:#38bdf8; font-family:monospace;">Priya@002</span></div>
+                        </div>
+                    </div>
+                    <div style="background:#0f172a; border:1px solid #1e293b; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-size:12px; color:#e2e8f0; font-weight:600;">Constable Arjun Das</div>
+                            <div style="font-size:11px; color:#64748b; margin-top:2px;">Badge: KOL-003 · Viewer</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:11px; color:#94a3b8;">ID: <span style="color:#38bdf8; font-family:monospace;">officer_arjun</span></div>
+                            <div style="font-size:11px; color:#94a3b8;">Pass: <span style="color:#38bdf8; font-family:monospace;">Arjun@003</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -216,8 +253,8 @@
                             </svg>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">TOTAL PERSONS</div>
-                            <div class="stat-value" id="statPersons">3</div>
+                            <div class="stat-label">TOTAL CRIMINALS</div>
+                            <div class="stat-value" id="statCriminals">0</div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -231,8 +268,22 @@
                             </svg>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">CRIMINAL RECORDS</div>
-                            <div class="stat-value" id="statRecords">4</div>
+                            <div class="stat-label">ACTIVE CASES</div>
+                            <div class="stat-value" id="statActiveCases">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper" style="color:var(--accent-red);">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-label">MOST WANTED</div>
+                            <div class="stat-value" id="statMostWanted">0</div>
                         </div>
                     </div>
                     <div class="stat-card">
@@ -244,28 +295,11 @@
                                 <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
                                 <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
                                 <circle cx="12" cy="12" r="3"></circle>
-                                <line x1="12" y1="8" x2="12" y2="10"></line>
-                                <line x1="12" y1="14" x2="12" y2="16"></line>
-                                <line x1="8" y1="12" x2="10" y2="12"></line>
-                                <line x1="14" y1="12" x2="16" y2="12"></line>
                             </svg>
                         </div>
                         <div class="stat-info">
-                            <div class="stat-label">FACE SEARCHES</div>
-                            <div class="stat-value" id="statSearches">0</div>
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon-wrapper">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="1.5">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </div>
-                        <div class="stat-info">
-                            <div class="stat-label">ACTIVE OFFICERS</div>
-                            <div class="stat-value" id="statOfficers">2</div>
+                            <div class="stat-label">LATEST DETECTIONS</div>
+                            <div class="stat-value" id="statDetections">0</div>
                         </div>
                     </div>
                 </div>
@@ -282,6 +316,34 @@
                         <div class="panel-header">Record Status</div>
                         <div class="chart-container" style="height: 180px;">
                             <canvas id="statusChartCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Most Wanted Panel -->
+                <div class="dashboard-grid" style="margin-top:20px;">
+                    <div class="panel">
+                        <div class="panel-header flex-between">
+                            <div>🚨 Most Wanted</div>
+                            <span class="badge" style="background:rgba(204,30,56,0.15);color:#f87171;" id="wantedCount">0</span>
+                        </div>
+                        <div class="wanted-grid" id="mostWantedGrid">
+                            <div class="empty-state" style="padding:20px;">
+                                <div class="empty-text">No high-risk persons</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Latest Detections Panel -->
+                    <div class="panel">
+                        <div class="panel-header flex-between">
+                            <div>🔍 Latest Detections</div>
+                            <span class="badge badge-action-search" id="detectionCount">0</span>
+                        </div>
+                        <div class="detection-list" id="latestDetectionsList">
+                            <div class="empty-state" style="padding:20px;">
+                                <div class="empty-text">No recent detections</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -738,7 +800,164 @@
         </div>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=1.3"></script>
+
+    <!-- ═══ Multi-Officer Login System ═══ -->
+    <script>
+        // ── Officer Registry ──────────────────────────────────────────────
+        const OFFICERS = {
+            "officer_rakesh": {
+                password:  "Rakesh@001",
+                name:      "Snr. Inspector Rakesh Sharma",
+                badge:     "KOL-001",
+                role:      "Admin",
+                avatar:    "R",
+                canDelete: true,
+                canRegister: true,
+                canExport: true
+            },
+            "officer_priya": {
+                password:  "Priya@002",
+                name:      "Sub-Inspector Priya Menon",
+                badge:     "KOL-002",
+                role:      "Investigator",
+                avatar:    "P",
+                canDelete: false,
+                canRegister: true,
+                canExport: true
+            },
+            "officer_arjun": {
+                password:  "Arjun@003",
+                name:      "Constable Arjun Das",
+                badge:     "KOL-003",
+                role:      "Viewer",
+                avatar:    "A",
+                canDelete: false,
+                canRegister: false,
+                canExport: false
+            }
+        };
+
+        // ── Override handleLogin() from app.js ────────────────────────────
+        function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value.trim();
+            const errorEl  = document.getElementById('loginError');
+
+            errorEl.textContent = '';
+            errorEl.style.display = 'none';
+
+            const officer = OFFICERS[username];
+
+            if (!officer) {
+                errorEl.textContent = 'Officer ID not recognised. Please check your credentials.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            if (officer.password !== password) {
+                errorEl.textContent = 'Incorrect access code. Please try again.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            // ── Store session ──
+            sessionStorage.setItem('currentOfficer', JSON.stringify({
+                username,
+                name:      officer.name,
+                badge:     officer.badge,
+                role:      officer.role,
+                avatar:    officer.avatar,
+                canDelete: officer.canDelete,
+                canRegister: officer.canRegister,
+                canExport: officer.canExport
+            }));
+
+            // ── Update UI with officer info ──
+            const avatarEl = document.getElementById('userAvatar');
+            const roleEl   = document.getElementById('userRole');
+            if (avatarEl) avatarEl.textContent = officer.avatar;
+            if (roleEl)   roleEl.textContent   = officer.role;
+
+            // ── Apply role-based restrictions ──
+            applyRoleRestrictions(officer);
+
+            // ── Show app shell ──
+            document.getElementById('loginPage').style.display = 'none';
+            document.getElementById('appShell').style.display  = 'flex';
+
+            // ── Log the login event ──
+            console.log(`[AUTH] ${officer.name} (${officer.badge}) authenticated as ${officer.role}`);
+
+            // ── Show welcome toast if function exists ──
+            if (typeof showToast === 'function') {
+                showToast(`Welcome, ${officer.name}`, 'success');
+            }
+
+            // ── Navigate to dashboard ──
+            if (typeof navigate === 'function') {
+                navigate('dashboard');
+            }
+        }
+
+        // ── Role-based UI restrictions ─────────────────────────────────────
+        function applyRoleRestrictions(officer) {
+            // Hide Delete Mode button for non-admins
+            const deleteModeBtn = document.querySelector('[onclick="toggleDeleteMode()"]');
+            if (deleteModeBtn && !officer.canDelete) {
+                deleteModeBtn.style.display = 'none';
+            }
+
+            // Hide Register Subject button for Viewers
+            const registerBtn = document.querySelector('[onclick="openAddPersonModal()"]');
+            if (registerBtn && !officer.canRegister) {
+                registerBtn.style.display = 'none';
+            }
+
+            // Hide Export to Excel for Viewers
+            const exportBtn = document.querySelector('[onclick="exportExcel()"]');
+            if (exportBtn && !officer.canExport) {
+                exportBtn.style.display = 'none';
+            }
+
+            // Add a visible badge with officer name to the nav
+            const userRoleEl = document.getElementById('userRole');
+            if (userRoleEl) {
+                const session = JSON.parse(sessionStorage.getItem('currentOfficer') || '{}');
+                userRoleEl.textContent = session.role || officer.role;
+                userRoleEl.title = `${officer.name} — Badge: ${officer.badge}`;
+            }
+        }
+
+        // ── Override handleLogout() ────────────────────────────────────────
+        function handleLogout() {
+            sessionStorage.removeItem('currentOfficer');
+            document.getElementById('appShell').style.display  = 'none';
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginError').style.display = 'none';
+        }
+
+        // ── On page load: restore session if exists ────────────────────────
+        window.addEventListener('DOMContentLoaded', () => {
+            const stored = sessionStorage.getItem('currentOfficer');
+            if (stored) {
+                const session = JSON.parse(stored);
+                const officer = OFFICERS[session.username];
+                if (officer) {
+                    const avatarEl = document.getElementById('userAvatar');
+                    const roleEl   = document.getElementById('userRole');
+                    if (avatarEl) avatarEl.textContent = officer.avatar;
+                    if (roleEl)   roleEl.textContent   = officer.role;
+                    applyRoleRestrictions(officer);
+                    document.getElementById('loginPage').style.display = 'none';
+                    document.getElementById('appShell').style.display  = 'flex';
+                    if (typeof navigate === 'function') navigate('dashboard');
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>
