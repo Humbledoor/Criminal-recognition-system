@@ -1,0 +1,41 @@
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Build artifacts
+build/
+dist/
+*.spec
+*.exe
+
+# Database (will be re-created on server)
+*.db
+
+# Firebase credentials (NEVER commit this)
+firebase_key.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+cloudflared_log.txt
+cloudflared.exe
+
+# Desktop app files (not needed for cloud)
+desktop_app.py
+build_desktop.py
+build.py
+Start_Application.bat
+Start_Public_Link.bat
+start.ps1
