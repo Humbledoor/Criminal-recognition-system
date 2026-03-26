@@ -19,17 +19,17 @@ def _init_firebase():
     if _firebase_app is not None:
         return
 
-    # Option 1: JSON key file in project root
-    key_path = os.path.join(os.path.dirname(__file__), "..", "firebase_key.json")
-
-    # Option 2: Environment variable (for Render deployment)
+    # Option 1: Environment variable (for Render deployment) — checked FIRST
     env_creds = os.environ.get("FIREBASE_CREDENTIALS")
 
-    if os.path.exists(key_path):
-        cred = credentials.Certificate(key_path)
-    elif env_creds:
+    # Option 2: JSON key file in project root (local development fallback)
+    key_path = os.path.join(os.path.dirname(__file__), "..", "firebase_key.json")
+
+    if env_creds:
         cred_dict = json.loads(env_creds)
         cred = credentials.Certificate(cred_dict)
+    elif os.path.exists(key_path):
+        cred = credentials.Certificate(key_path)
     else:
         raise RuntimeError(
             "Firebase credentials not found. "
